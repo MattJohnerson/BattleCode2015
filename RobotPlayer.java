@@ -3,6 +3,8 @@ package team428;
 import battlecode.common.*;
 import java.util.*;
 
+//Gobbledygook
+
 public class RobotPlayer {
 	static RobotController rc;
 	static Team myTeam;
