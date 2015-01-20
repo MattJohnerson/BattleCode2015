@@ -1,6 +1,7 @@
 package team428;
 
 import battlecode.common.*;
+
 import java.util.*;
 
 //Gobbledygook
@@ -12,13 +13,21 @@ public class RobotPlayer {
 	static int myRange;
 	static Random rand;
 	static Direction[] directions = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
-
-	public static void run(RobotController tomatojuice) {
-		rc = tomatojuice;
+	static int MFNum = 0;
+	static int HeliNum = 0;
+	static int SupplyNum = 0;
+	static int MinerNum = 0;
+	static int DroneNum = 0;
+	
+	
+	public static void run(RobotController pineapplejuice) {
+		rc = pineapplejuice;
 		rand = new Random(rc.getID());
 
 		myRange = rc.getType().attackRadiusSquared;
-		MapLocation enemyLoc = rc.senseEnemyHQLocation();
+		MapLocation enemyHQ = rc.senseEnemyHQLocation();
+		
+		MapLocation myHQ = rc.senseHQLocation();
 		Direction lastDirection = null;
 		myTeam = rc.getTeam();
 		enemyTeam = myTeam.opponent();
@@ -26,8 +35,7 @@ public class RobotPlayer {
 
 		while(true) {
 			try {
-				rc.setIndicatorString(0, "This is an indicator string.");
-				rc.setIndicatorString(1, "I am a " + rc.getType());
+				rc.setIndicatorString(0, "I am a " + rc.getType());
 			} catch (Exception e) {
 				System.out.println("Unexpected exception");
 				e.printStackTrace();
@@ -35,34 +43,19 @@ public class RobotPlayer {
 
 			if (rc.getType() == RobotType.HQ) {
 				try {
-					int fate = rand.nextInt(10000);
-					myRobots = rc.senseNearbyRobots(999999, myTeam);
-					int numSoldiers = 0;
-					int numBashers = 0;
-					int numBeavers = 0;
-					int numBarracks = 0;
-					for (RobotInfo r : myRobots) {
-						RobotType type = r.type;
-						if (type == RobotType.SOLDIER) {
-							numSoldiers++;
-						} else if (type == RobotType.BASHER) {
-							numBashers++;
-						} else if (type == RobotType.BEAVER) {
-							numBeavers++;
-						} else if (type == RobotType.BARRACKS) {
-							numBarracks++;
+					myRobots = rc.senseNearbyRobots(Integer.MAX_VALUE, myTeam);
+					boolean spawnBeaver = true;
+					if(myRobots.length > 0){
+						for(RobotInfo r : myRobots){
+							if(r.type.equals(rc.getType().BEAVER)){
+								spawnBeaver = false;
+							}
 						}
 					}
-					rc.broadcast(0, numBeavers);
-					rc.broadcast(1, numSoldiers);
-					rc.broadcast(2, numBashers);
-					rc.broadcast(100, numBarracks);
-
 					if (rc.isWeaponReady()) {
 						attackSomething();
 					}
-
-					if (rc.isCoreReady() && rc.getTeamOre() >= 100 && fate < Math.pow(1.2,12-numBeavers)*10000) {
+					if (rc.isCoreReady() && rc.getTeamOre() >= 100 && spawnBeaver) {
 						trySpawn(directions[rand.nextInt(8)], RobotType.BEAVER);
 					}
 				} catch (Exception e) {
@@ -82,60 +75,23 @@ public class RobotPlayer {
 				}
 			}
 
-
-			if (rc.getType() == RobotType.BASHER) {
-				try {
-					RobotInfo[] adjacentEnemies = rc.senseNearbyRobots(2, enemyTeam);
-
-					// BASHERs attack automatically, so let's just move around mostly randomly
-					if (rc.isCoreReady()) {
-						int fate = rand.nextInt(1000);
-						if (fate < 800) {
-							tryMove(directions[rand.nextInt(8)]);
-						} else {
-							tryMove(rc.getLocation().directionTo(rc.senseEnemyHQLocation()));
-						}
-					}
-				} catch (Exception e) {
-					System.out.println("Basher Exception");
-					e.printStackTrace();
-				}
-			}
-
-			if (rc.getType() == RobotType.SOLDIER) {
-				try {
-					if (rc.isWeaponReady()) {
-						attackSomething();
-					}
-					if (rc.isCoreReady()) {
-						int fate = rand.nextInt(1000);
-						if (fate < 800) {
-							tryMove(directions[rand.nextInt(8)]);
-						} else {
-							tryMove(rc.getLocation().directionTo(rc.senseEnemyHQLocation()));
-						}
-					}
-				} catch (Exception e) {
-					System.out.println("Soldier Exception");
-					e.printStackTrace();
-				}
-			}
-
 			if (rc.getType() == RobotType.BEAVER) {
 				try {
 					if (rc.isWeaponReady()) {
 						attackSomething();
 					}
 					if (rc.isCoreReady()) {
-						int fate = rand.nextInt(1000);
-						if (fate < 8 && rc.getTeamOre() >= 300) {
-							tryBuild(directions[rand.nextInt(8)],RobotType.BARRACKS);
-						} else if (fate < 600) {
-							rc.mine();
-						} else if (fate < 900) {
-							tryMove(directions[rand.nextInt(8)]);
-						} else {
-							tryMove(rc.senseHQLocation().directionTo(rc.getLocation()));
+						if(MFNum == 0){
+							if(rc.getTeamOre() >= RobotType.MINERFACTORY.oreCost && rc.canBuild(directions[5], RobotType.MINERFACTORY)){
+								rc.build(directions[5], RobotType.MINERFACTORY);
+								MFNum++;
+							}
+						}
+						if(MFNum > 0 && HeliNum == 0){
+							if(rc.getTeamOre() >= RobotType.HELIPAD.oreCost && rc.canBuild(directions[7], RobotType.MINERFACTORY)){
+								rc.build(directions[7], RobotType.HELIPAD);
+								HeliNum++;
+							}
 						}
 					}
 				} catch (Exception e) {
@@ -143,31 +99,86 @@ public class RobotPlayer {
 					e.printStackTrace();
 				}
 			}
-
-			if (rc.getType() == RobotType.BARRACKS) {
+			
+			if (rc.getType() == RobotType.BEAVER) {
 				try {
-					int fate = rand.nextInt(10000);
-
-					// get information broadcasted by the HQ
-					int numBeavers = rc.readBroadcast(0);
-					int numSoldiers = rc.readBroadcast(1);
-					int numBashers = rc.readBroadcast(2);
-
-					if (rc.isCoreReady() && rc.getTeamOre() >= 60 && fate < Math.pow(1.2,15-numSoldiers-numBashers+numBeavers)*10000) {
-						if (rc.getTeamOre() > 80 && fate % 2 == 0) {
-							trySpawn(directions[rand.nextInt(8)],RobotType.BASHER);
-						} else {
-							trySpawn(directions[rand.nextInt(8)],RobotType.SOLDIER);
+					if (rc.isWeaponReady()) {
+						attackSomething();
+					}
+					if (rc.isCoreReady()) {
+						if(MFNum == 0){
+							if(rc.getTeamOre() >= RobotType.MINERFACTORY.oreCost && rc.canBuild(directions[5], RobotType.MINERFACTORY)){
+								rc.build(directions[5], RobotType.MINERFACTORY);
+								MFNum++;
+							}
+						}
+						if(MFNum > 0 && HeliNum == 0){
+							if(rc.getTeamOre() >= RobotType.HELIPAD.oreCost && rc.canBuild(directions[7], RobotType.MINERFACTORY)){
+								rc.build(directions[7], RobotType.HELIPAD);
+								HeliNum++;
+							}
 						}
 					}
 				} catch (Exception e) {
-					System.out.println("Barracks Exception");
+					System.out.println("Beaver Exception");
+					e.printStackTrace();
+				}
+			}
+			
+			if(rc.getType() == RobotType.MINER){
+				try {
+					MapLocation mineHere = findMost(rc.getLocation());
+					if(rc.isCoreReady() && rc.canMine()){
+						if(rc.senseOre(rc.getLocation()) >= rc.senseOre(mineHere) || rc.senseOre(rc.getLocation()) > 10){
+							rc.mine();
+						} else {
+							tryAvoidMove(rc.getLocation().directionTo(mineHere));
+						}
+					}
+				}
+				catch (GameActionException e) {
+					e.printStackTrace();
+
+				}
+			}
+			
+			if (rc.getType() == RobotType.MINERFACTORY){
+				try {
+					if (rc.isCoreReady() && rc.getTeamOre() >= RobotType.MINER.oreCost) {
+						trySpawn(rc.getLocation().directionTo(myHQ).opposite(), RobotType.MINER);
+					}
+				} catch (Exception e) {
+					System.out.println("MinerFactory Exception");
+					e.printStackTrace();
+				}
+			}
+			
+			if (rc.getType() == RobotType.HELIPAD) {
+				try {
+					
+					if (rc.isCoreReady() && rc.getTeamOre() >= RobotType.DRONE.oreCost) {
+						trySpawn(directions[rand.nextInt(8)],RobotType.DRONE);
+					}
+				} catch (Exception e) {
+					System.out.println("Helipad Exception");
 					e.printStackTrace();
 				}
 			}
 
 			rc.yield();
 		}
+	}
+
+	private static MapLocation findMost(MapLocation location) {
+		MapLocation most = location;
+		int mostSoFar = 0;
+		for(int i = 0; i < 8; i++){
+			if(rc.senseOre(rc.getLocation().add(directions[i])) > mostSoFar){
+				most = rc.getLocation().add(directions[i]);
+				mostSoFar =(int) rc.senseOre(rc.getLocation().add(directions[i]));
+			}
+		}
+		return most;
 	}
 
 	// This method will attack an enemy in sight, if there is one
@@ -191,6 +202,29 @@ public class RobotPlayer {
 			rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
 		}
 	}
+	
+	// This method will attempt to move in Direction d (or as close to it as possible) while avoiding towers and hq
+		static void tryAvoidMove(Direction d) throws GameActionException {
+			MapLocation tileInFront = rc.getLocation().add(d);
+			MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
+			int offsetIndex = 0;
+			int[] offsets = {0,1,-1,2,-2};
+			int dirint = directionToInt(d);
+			boolean blocked = false;
+			boolean tileInFrontSafe = true;
+			for(MapLocation m : enemyTowers){
+				if(m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared){
+					tileInFrontSafe = false;
+					break;
+				}
+			}
+			while (offsetIndex < 5 && !rc.canMove(directions[(dirint+offsets[offsetIndex]+8)%8])) {
+				offsetIndex++;
+			}
+			if (offsetIndex < 5 && tileInFrontSafe) {
+				rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
+			}
+		}
 
 	// This method will attempt to spawn in the given direction (or as close to it as possible)
 	static void trySpawn(Direction d, RobotType type) throws GameActionException {
