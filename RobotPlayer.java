@@ -56,7 +56,7 @@ public class RobotPlayer {
 						attackSomething();
 					}
 					if (rc.isCoreReady() && rc.getTeamOre() >= 100 && spawnBeaver) {
-						trySpawn(directions[rand.nextInt(8)], RobotType.BEAVER);
+						trySpawn(myHQ.directionTo(enemyHQ).opposite(), RobotType.BEAVER);
 					}
 				} catch (Exception e) {
 					System.out.println("HQ Exception");
@@ -83,16 +83,16 @@ public class RobotPlayer {
 					if (rc.isCoreReady()) {
 						if(MFNum == 0){
 							if(rc.getTeamOre() >= RobotType.MINERFACTORY.oreCost && rc.canBuild(directions[5], RobotType.MINERFACTORY)){
-								rc.build(directions[5], RobotType.MINERFACTORY);
+								tryBuild(directions[0], RobotType.MINERFACTORY);
 								MFNum++;
 							}
-						}
-						if(MFNum > 0 && HeliNum == 0){
+						}else if(MFNum > 0 && HeliNum <= 2){
 							if(rc.getTeamOre() >= RobotType.HELIPAD.oreCost && rc.canBuild(directions[7], RobotType.MINERFACTORY)){
-								rc.build(directions[7], RobotType.HELIPAD);
+								tryBuild(directions[HeliNum*2 + 2], RobotType.HELIPAD);
 								HeliNum++;
 							}
 						}
+						rc.yield();
 					}
 				} catch (Exception e) {
 					System.out.println("Beaver Exception");
@@ -100,30 +100,6 @@ public class RobotPlayer {
 				}
 			}
 			
-			if (rc.getType() == RobotType.BEAVER) {
-				try {
-					if (rc.isWeaponReady()) {
-						attackSomething();
-					}
-					if (rc.isCoreReady()) {
-						if(MFNum == 0){
-							if(rc.getTeamOre() >= RobotType.MINERFACTORY.oreCost && rc.canBuild(directions[5], RobotType.MINERFACTORY)){
-								rc.build(directions[5], RobotType.MINERFACTORY);
-								MFNum++;
-							}
-						}
-						if(MFNum > 0 && HeliNum == 0){
-							if(rc.getTeamOre() >= RobotType.HELIPAD.oreCost && rc.canBuild(directions[7], RobotType.MINERFACTORY)){
-								rc.build(directions[7], RobotType.HELIPAD);
-								HeliNum++;
-							}
-						}
-					}
-				} catch (Exception e) {
-					System.out.println("Beaver Exception");
-					e.printStackTrace();
-				}
-			}
 			
 			if(rc.getType() == RobotType.MINER){
 				try {
@@ -139,6 +115,23 @@ public class RobotPlayer {
 				catch (GameActionException e) {
 					e.printStackTrace();
 
+				}
+			}
+			
+			if(rc.getType() == RobotType.DRONE){
+				try {
+					Direction towardEnemy = rc.getLocation().directionTo(enemyHQ);
+					if(rc.isCoreReady()){
+						if(rc.isWeaponReady()){
+							attackSomething();
+						}
+						if(rc.canMove(towardEnemy)){
+							tryAvoidMove(towardEnemy);
+						}
+					}
+				} catch (Exception e) {
+					System.out.println("Drone Exception");
+					e.printStackTrace();
 				}
 			}
 			
@@ -169,6 +162,7 @@ public class RobotPlayer {
 		}
 	}
 
+	//This method finds the location with the most ore on it
 	private static MapLocation findMost(MapLocation location) {
 		MapLocation most = location;
 		int mostSoFar = 0;
@@ -207,10 +201,10 @@ public class RobotPlayer {
 		static void tryAvoidMove(Direction d) throws GameActionException {
 			MapLocation tileInFront = rc.getLocation().add(d);
 			MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
+			MapLocation eHQ = rc.senseEnemyHQLocation();
 			int offsetIndex = 0;
 			int[] offsets = {0,1,-1,2,-2};
 			int dirint = directionToInt(d);
-			boolean blocked = false;
 			boolean tileInFrontSafe = true;
 			for(MapLocation m : enemyTowers){
 				if(m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared){
@@ -218,9 +212,24 @@ public class RobotPlayer {
 					break;
 				}
 			}
-			while (offsetIndex < 5 && !rc.canMove(directions[(dirint+offsets[offsetIndex]+8)%8])) {
-				offsetIndex++;
+			if(eHQ.distanceSquaredTo(tileInFront) <= RobotType.HQ.attackRadiusSquared){
+				tileInFrontSafe = false;
 			}
+			do{
+				while (offsetIndex < 5 && !rc.canMove(directions[(dirint+offsets[offsetIndex]+8)%8])) {
+
+					tileInFront = rc.getLocation().add(directions[(dirint+offsets[offsetIndex]+8)%8]);
+					for(MapLocation m : enemyTowers){
+						if(m.distanceSquaredTo(tileInFront) > RobotType.TOWER.attackRadiusSquared){
+							tileInFrontSafe = true;
+							break;
+						}
+					}
+
+					offsetIndex++;
+				}
+			}while(!tileInFrontSafe);
+			
 			if (offsetIndex < 5 && tileInFrontSafe) {
 				rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
 			}
