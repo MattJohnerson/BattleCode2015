@@ -174,6 +174,8 @@ public class RobotPlayer {
 		}
 		return most;
 	}
+	
+	
 
 	// This method will attack an enemy in sight, if there is one
 	static void attackSomething() throws GameActionException {
@@ -201,6 +203,7 @@ public class RobotPlayer {
 		static void tryAvoidMove(Direction d) throws GameActionException {
 			MapLocation tileInFront = rc.getLocation().add(d);
 			MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
+			RobotInfo[] enemies = rc.senseNearbyRobots(myRange, enemyTeam);
 			MapLocation eHQ = rc.senseEnemyHQLocation();
 			int offsetIndex = 0;
 			int[] offsets = {0,1,-1,2,-2};
