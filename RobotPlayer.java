@@ -1,7 +1,6 @@
 package team428;
 
 import battlecode.common.*;
-
 import java.util.*;
 
 //Gobbledygook
@@ -18,6 +17,9 @@ public class RobotPlayer {
 	static int SupplyNum = 0;
 	static int MinerNum = 0;
 	static int DroneNum = 0;
+	static MapLocation[] enemyTowers;
+	
+	
 	
 	
 	public static void run(RobotController pineapplejuice) {
@@ -35,7 +37,7 @@ public class RobotPlayer {
 
 		while(true) {
 			try {
-				rc.setIndicatorString(0, "I am a " + rc.getType());
+				rc.setIndicatorString(0, "I am a " + rc.getType() + " hear me roar!");
 			} catch (Exception e) {
 				System.out.println("Unexpected exception");
 				e.printStackTrace();
@@ -51,6 +53,10 @@ public class RobotPlayer {
 								spawnBeaver = false;
 							}
 						}
+					}
+					if (Clock.getRoundNum() == 5){
+						enemyTowers = rc.senseEnemyTowerLocations();
+						
 					}
 					if (rc.isWeaponReady()) {
 						attackSomething();
@@ -77,6 +83,7 @@ public class RobotPlayer {
 
 			if (rc.getType() == RobotType.BEAVER) {
 				try {
+					RobotType nextBuilding = null;
 					if (rc.isWeaponReady()) {
 						attackSomething();
 					}
@@ -122,11 +129,9 @@ public class RobotPlayer {
 				try {
 					Direction towardEnemy = rc.getLocation().directionTo(enemyHQ);
 					if(rc.isCoreReady()){
-						if(rc.isWeaponReady()){
-							attackSomething();
-						}
-						if(rc.canMove(towardEnemy)){
-							tryAvoidMove(towardEnemy);
+						attackSomething();
+						if(rc.isCoreReady()){
+							tryCombatMove(towardEnemy);
 						}
 					}
 				} catch (Exception e) {
@@ -162,6 +167,164 @@ public class RobotPlayer {
 		}
 	}
 
+	private static void tryCombatMove(Direction towardEnemy) throws GameActionException {
+		Direction dir = towardEnemy;
+		MapLocation nextMove = rc.getLocation().add(dir);
+		MapLocation enemyHQ = rc.senseEnemyHQLocation();
+		RobotInfo[] enemies = rc.senseNearbyRobots(myRange + 2, enemyTeam);
+		RobotInfo[] allies = rc.senseNearbyRobots(myRange - 1, myTeam);
+		MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
+		boolean safe = true;
+		
+		for(MapLocation m : enemyTowers){
+			if(m.distanceSquaredTo(nextMove) <= RobotType.TOWER.attackRadiusSquared){
+				safe = false;
+				break;
+			}
+		}
+		if(enemyHQ.distanceSquaredTo(nextMove) <= RobotType.HQ.attackRadiusSquared){
+			safe = false;
+		}
+		
+		if(enemies.length > 0){
+			//there are enemies nearby, decide what to do fool!
+			if(allies.length > enemies.length){
+				//we got yo back, fight!
+				if(rc.isWeaponReady() && rc.canAttackLocation(enemies[0].location)){
+					rc.attackLocation(enemies[0].location);
+					
+				}
+			} else {
+				//don't fight, kite!
+				if(rc.canMove(dir.opposite()) && safe){
+					rc.move(dir.opposite());
+				} else {
+					if(rand.nextBoolean()){
+						for(int i = 1; i < 8; i++){
+							dir = dir.rotateLeft();
+							MapLocation possible = rc.getLocation().add(dir);
+							safe = true;
+							for(MapLocation m : enemyTowers){
+								if(m.distanceSquaredTo(possible) <= RobotType.TOWER.attackRadiusSquared){
+									safe = false;
+									break;
+								}
+							}
+							if(enemyHQ.distanceSquaredTo(nextMove) <= RobotType.HQ.attackRadiusSquared){
+								safe = false;
+							}
+
+							if(safe && rc.canMove(dir)){
+								nextMove = possible;
+								rc.move(dir);
+								break;
+							}
+						}
+					} else {
+						for(int i = 1; i < 8; i++){
+							dir = dir.rotateRight();
+							MapLocation possible = rc.getLocation().add(dir);
+							safe = true;
+							for(MapLocation m : enemyTowers){
+								if(m.distanceSquaredTo(possible) <= RobotType.TOWER.attackRadiusSquared){
+									safe = false;
+									break;
+								}
+							}
+							if(enemyHQ.distanceSquaredTo(nextMove) <= RobotType.HQ.attackRadiusSquared){
+								safe = false;
+							}
+
+							if(safe && rc.canMove(dir)){
+								nextMove = possible;
+								rc.move(dir);
+								break;
+							}
+						}
+					}
+				}
+			}
+		} else if(!safe){
+			//next move will be dangerous, pick a different location
+			if(rand.nextBoolean()){
+				for(int i = 1; i < 8; i++){
+					dir = dir.rotateLeft();
+					MapLocation possible = rc.getLocation().add(dir);
+					safe = true;
+
+					for(MapLocation m : enemyTowers){
+						if(m.distanceSquaredTo(possible) <= RobotType.TOWER.attackRadiusSquared){
+							safe = false;
+							break;
+						}
+					}
+					if(enemyHQ.distanceSquaredTo(nextMove) <= RobotType.HQ.attackRadiusSquared){
+						safe = false;
+					}
+
+
+					if(safe && rc.canMove(dir)){
+						nextMove = possible;
+						rc.move(dir);
+						break;
+					}
+				}
+			} else {
+				for(int i = 1; i < 8; i++){
+					dir = dir.rotateRight();
+					MapLocation possible = rc.getLocation().add(dir);
+					safe = true;
+					
+					for(MapLocation m : enemyTowers){
+						if(m.distanceSquaredTo(possible) <= RobotType.TOWER.attackRadiusSquared){
+							safe = false;
+							break;
+						}
+					}
+					if(enemyHQ.distanceSquaredTo(nextMove) <= RobotType.HQ.attackRadiusSquared){
+						safe = false;
+					}
+					
+					
+					if(safe && rc.canMove(dir)){
+						nextMove = possible;
+						rc.move(dir);
+						break;
+					}
+				}
+			}
+		} else {
+			//nothing to report, carry on
+			if(rc.canMove(dir)){
+				rc.move(dir);
+			} else {
+				//find another valid tile
+				if(rand.nextBoolean()){
+					for(int i = 1; i < 8; i++){
+						dir = dir.rotateLeft();
+						MapLocation possible = rc.getLocation().add(dir);
+						if(safe && rc.canMove(dir)){
+							nextMove = possible;
+							rc.move(dir);
+							break;
+						}
+					}
+				} else {
+					for(int i = 1; i < 8; i++){
+						dir = dir.rotateRight();
+						MapLocation possible = rc.getLocation().add(dir);
+						if(safe && rc.canMove(dir)){
+							nextMove = possible;
+							rc.move(dir);
+							break;
+						}
+					}
+				}
+				
+			}
+		}
+	}
+
 	//This method finds the location with the most ore on it
 	private static MapLocation findMost(MapLocation location) {
 		MapLocation most = location;
@@ -181,7 +344,9 @@ public class RobotPlayer {
 	static void attackSomething() throws GameActionException {
 		RobotInfo[] enemies = rc.senseNearbyRobots(myRange, enemyTeam);
 		if (enemies.length > 0) {
-			rc.attackLocation(enemies[0].location);
+			if(rc.isWeaponReady()){
+				rc.attackLocation(enemies[0].location);
+			}
 		}
 	}
 
@@ -198,45 +363,20 @@ public class RobotPlayer {
 			rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
 		}
 	}
-	
-	// This method will attempt to move in Direction d (or as close to it as possible) while avoiding towers and hq
-		static void tryAvoidMove(Direction d) throws GameActionException {
-			MapLocation tileInFront = rc.getLocation().add(d);
-			MapLocation[] enemyTowers = rc.senseEnemyTowerLocations();
-			RobotInfo[] enemies = rc.senseNearbyRobots(myRange, enemyTeam);
-			MapLocation eHQ = rc.senseEnemyHQLocation();
-			int offsetIndex = 0;
-			int[] offsets = {0,1,-1,2,-2};
-			int dirint = directionToInt(d);
-			boolean tileInFrontSafe = true;
-			for(MapLocation m : enemyTowers){
-				if(m.distanceSquaredTo(tileInFront) <= RobotType.TOWER.attackRadiusSquared){
-					tileInFrontSafe = false;
-					break;
-				}
-			}
-			if(eHQ.distanceSquaredTo(tileInFront) <= RobotType.HQ.attackRadiusSquared){
-				tileInFrontSafe = false;
-			}
-			do{
-				while (offsetIndex < 5 && !rc.canMove(directions[(dirint+offsets[offsetIndex]+8)%8])) {
 
-					tileInFront = rc.getLocation().add(directions[(dirint+offsets[offsetIndex]+8)%8]);
-					for(MapLocation m : enemyTowers){
-						if(m.distanceSquaredTo(tileInFront) > RobotType.TOWER.attackRadiusSquared){
-							tileInFrontSafe = true;
-							break;
-						}
-					}
-
-					offsetIndex++;
-				}
-			}while(!tileInFrontSafe);
-			
-			if (offsetIndex < 5 && tileInFrontSafe) {
-				rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
-			}
+	// This method will attempt to move in Direction d (or as close to it as possible) while avoiding enemies
+	static void tryAvoidMove(Direction d) throws GameActionException {
+		int offsetIndex = 0;
+		int[] offsets = {0,1,-1,2,-2};
+		int dirint = directionToInt(d);
+		boolean blocked = false;
+		while (offsetIndex < 5 && !rc.canMove(directions[(dirint+offsets[offsetIndex]+8)%8])) {
+			offsetIndex++;
 		}
+		if (offsetIndex < 5) {
+			rc.move(directions[(dirint+offsets[offsetIndex]+8)%8]);
+		}
+	}
 
 	// This method will attempt to spawn in the given direction (or as close to it as possible)
 	static void trySpawn(Direction d, RobotType type) throws GameActionException {
